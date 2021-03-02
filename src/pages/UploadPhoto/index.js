@@ -1,24 +1,61 @@
-import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { IconAddPhoto, ILNullPhoto } from '../../assets';
+import React, {useState} from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { IconAddPhoto, IconRemovePhoto, ILNullPhoto } from '../../assets';
 import { Button, Gap, Header, Link } from '../../components';
 import { colors, fonts } from '../../utills';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { showMessage } from 'react-native-flash-message';
+import { Fire } from '../../config';
 
-const UploadPhoto = ({navigation}) => {
+const UploadPhoto = ({navigation, route}) => {
+    const {fullName, profession, uid} = route.params;
+    const [photoForDB, sePhotoForDB] = useState('');
+    const [hasPhoto, setHasPhoto] = useState(false);
+    const [photo, setPhoto] = useState(ILNullPhoto);
+    const getImage = () => {
+        const options = {mediaType: 'photo', quality: 0.5, maxWidth: 200, maxHeight: 200};
+        launchImageLibrary(options, (response) => {  
+            console.log('response: ',response);
+            if(response.didCancel || response.error){
+                showMessage({
+                    message: 'Silahkan memilih foto profile untuk dapat melanjutkan pendaftaran',
+                    type: 'default',
+                    backgroundColor: colors.error,
+                    color: colors.white
+                })
+            }else{
+                sePhotoForDB(`data:${response.type};base64, ${response.base64}`);
+                console.log('base64', response.base64);
+                const source = {uri: response.uri};
+                setPhoto(source);
+                setHasPhoto(true);
+            }
+        });
+    }
+
+    const uploadAndContinue = () => {
+        Fire
+            .database()
+            .ref('users/' + uid + '/')
+            .update({photo: photoForDB});
+        navigation.replace('MainApp');
+    }
+
     return (
         <View style={styles.page}>
             <Header title="Upload Photo" onPress={() => navigation.navigate('Register')} />
             <View style={styles.content}>
                 <View style={styles.profile}>
-                    <View style={styles.avatarWrapper}>
-                        <Image source={ILNullPhoto} style={styles.avatar} />
-                        <IconAddPhoto style={styles.addPhoto} />
-                    </View>
-                    <Text style={styles.name}>Shayna Melinda</Text>
-                    <Text style={styles.profession}>Product Designer</Text>
+                    <TouchableOpacity style={styles.avatarWrapper} onPress={getImage}>
+                        <Image source={photo} style={styles.avatar} />
+                        {hasPhoto && <IconRemovePhoto style={styles.addPhoto} />}
+                        {!hasPhoto && <IconAddPhoto style={styles.addPhoto} />}                        
+                    </TouchableOpacity>
+                    <Text style={styles.name}>{fullName}</Text>
+                    <Text style={styles.profession}>{profession}</Text>
                 </View>
                 <View>
-                    <Button title="Upload and Continue" />
+                    <Button disable={!hasPhoto} title="Upload and Continue" onPress={uploadAndContinue} />
                     <Gap height={30} />
                     <Link title="Skip for this" align="center" size={16} />
                 </View>
@@ -56,7 +93,8 @@ const styles = StyleSheet.create({
     },
     avatar: {
         width: 110,
-        height: 110
+        height: 110,
+        borderRadius: 110 / 2
     },
     addPhoto: {
         position: 'absolute',
